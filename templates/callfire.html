@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Callfire Tool</title>
+  <link rel='shortcut icon' type='image/x-icon' href="{% static 'images/favicon.ico' %}">
+  <link rel="stylesheet" href="{% static 'styles.css' %}">
+
+  <!-- jQuery and Bootstrap -->
+  <script type="text/javascript" src="http://code.jquery.com/jquery.min.js"></script>  
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+  <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+
+<body>
+<!-- NAV -->
+<div style="display: flex;">
+  <img class="logo" src="{% static 'images/centersLogo3d.png' %}" alt="logo">
+  
+  <ul class="nav-bar">
+      <h1 id="header2" style="color: #472e8d">Callfire Tool</h1>
+  </ul>
+</div>
+<div id="sql_div">
+<div class="custom-control custom-checkbox">
+
+<!-- TEST MODE CHECKBOX -->
+<div id="test_div">
+  <label class="label-switch switch-success">
+  <input type="checkbox" class="switch-square switch-bootstrap status" name="test_check_box" id="test_check_box" checked="checked">
+  <span id="test_label" class="lable"></span></label><span>Test Mode</span>
+</div>
+
+<!-- MASTER CHECKBOX -->
+<div id="master_div">
+  <label class="label-switch switch-success">
+  <input type="checkbox" class="switch-square switch-bootstrap status" name="master_check_box" id="master_check_box">
+  <span id="master_label" class="lable"></span></label><span>All</span>
+</div>
+
+
+<!-- SLAVE CHECKBOXES  -->
+<div class="rows"><div class="clearfix"></div>
+<div class="row">
+    {% for db_group in db_list %}
+    <div class="col col-lg-2">
+      {% for db in db_group %}
+      {% if db %}
+      <div>
+        <label class="label-switch switch-success">
+	        <input type="checkbox" class="switch-square switch-bootstrap status checked" name="{{db.1}}" id="{{db.0}}" {% if db.0 == "SandboxMaster" or db.0 == "SandboxSlave1" or db.0 == "SandboxSlave2" %}checked="checked"{% endif %}>
+          <span class="lable" style="margin-left: 10px;">{{db.1}}</span>
+        </label>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+</div>
+  <br>
+  <br>
+
+    <h2>SQL Query:</h2>
+    <textarea id='sql_string' rows="4" cols="235"></textarea>
+    <br>
+    <button id="submit" onclick="show_description_modal()">Submit SQL</button>
+    <br><br>
+  </div>
+
+  <div id="loading_div"></div>
+
+  <div id="display_results"></div>
+
+  <!-- JS -->
+<script>
+  function show_description_modal() {
+    console.log('in description modal')
+    const sql = $('#sql_string').val()
+    const sql_lower = sql.toLowerCase()
+    if (sql_lower.includes('update')) {
+      $("#description_modal").modal('show')
+    }
+    else {
+      submit()
+    } 
+  }
+
+
+
+  function show_modal() {
+    console.log('In the second modal from session storage:', sessionStorage.getItem('name'), sessionStorage.getItem('description'))
+    // full_name and description are from the previous meta-data modal
+    const sql = document.getElementById('sql_string').value
+    let name = sessionStorage.getItem('name') 
+    let description = sessionStorage.getItem('description')
+    console.log('before showing the second modal:', name, description)
+    let checked_check_boxes = $(':checkbox:not("#master_check_box"):not("#test_check_box"):checked')
+
+    db_list = []
+
+    for (let i = 0; i < checked_check_boxes.length; i++) {
+      db_list.push(checked_check_boxes[i].id)
+    }
+
+    db_list = JSON.stringify(db_list)
+    console.log(db_list)
+    sql_lower = sql.toLowerCase()
+    if (sql_lower.includes('update')) {
+      console.log('query includes update...')
+      // make an ajax call and then show the modal populated with the results
+
+      $.ajax({
+      type: "POST",
+      url: "http://localhost:8000/populate_modal/",
+      dataType: 'json',
+      
+      data: {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'sql': sql,
+        'db_list': db_list,
+        'name': name,
+        'description': description
+      },
+
+      headers: {
+        "accept": "application/json",
+        "Access-Control-Allow-Origin": "*",
+         },
+
+      success: function(update_dictionary) {
+        console.log(update_dictionary)
+         // loop through each key in the response dictionary and populate modal
+         $(".modal-body").html("")
+
+        for (key in update_dictionary) {
+          console.log(update_dictionary[key])
+          $(".modal-body").append(`This operation will affect <b>${update_dictionary[key]}</b> row(s) in database <b>${key}</b>! <br>`);
+        
+        }
+
+      }})
+     
+      $("#myModal").modal('show') 
+      
+    }
+
+    else {
+      console.log('in the else')
+      submit()
+    }
+
+    // ___ TURN ON MODAL TIMEOUT ___ //
+    // const modal_div = $('#myModal')
+    // clearTimeout(modal_div.data('hideInterval'))
+    // modal_div.data('hideInterval', setTimeout(function() {
+    // modal_div.modal('hide')
+    //   }, 5000))
+  }
+
+  function submit() {
+    console.log('after submission from session storage:', sessionStorage.getItem('name'), sessionStorage.getItem('description'))
+
+    // data to be sent to the server
+    const sql = $('#sql_string').val();
+    const name = sessionStorage.getItem('name') 
+    const description = sessionStorage.getItem('description')
+    
+    results_hook = document.getElementById('display_results')
+    results_hook.innerHTML = ''
+
+    // get list of all relevant checkboxes that are currently checked and send their values to the server.
+    let checked_check_boxes = $(':checkbox:not("#master_check_box"):not("#test_check_box"):checked')
+
+    // early exit if no databases were selected
+    if (checked_check_boxes.length  == 0) {
+      return
+    }
+    
+    db_list = []
+
+    for (let i = 0; i < checked_check_boxes.length; i++) {
+      db_list.push(checked_check_boxes[i].id)
+    }
+
+    db_list = JSON.stringify(db_list)
+    console.log(db_list)
+    
+    $.ajax({
+      type: "POST",
+      url: "http://localhost:8000/process_sql/",
+      dataType: 'json',
+      
+      data: {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'sql': sql,
+        'db_list': db_list,
+        'name': name,
+        'description': description
+      },
+
+      headers: {
+        "accept": "application/json",
+        "Access-Control-Allow-Origin": "*",
+         },
+
+      success: function(response) {
+        // if the query was an UPDATE
+        console.log(response)
+        if (response == 'An integrity error occured!') {
+          results_hook.innerHTML = response
+        }
+
+        else if ('row_count' in response) {
+          row_count_dictionary = response['row_count']
+          console.log(response)
+          let response_string = 'Update was Successful! <br>'
+          for (let facility in row_count_dictionary) {
+            response_string += `You affected ${row_count_dictionary[facility]} rows in ${facility}. <br>`
+          }
+          results_hook.innerHTML = response_string
+        }
+        
+        // console.log(results_hook)
+        // console.log(response)
+
+        // if there is an error, print it and early exit
+        else if ('error' in response) {
+            results_hook.innerHTML = response['error']
+            return
+        }
+
+        else if (response[0] && response[1]) {
+          // if was select, then extract both columns and results
+          console.log('it was a select')
+
+          const columns = response[0]
+          const results = response[1]
+
+           // build table 
+           html = `<table id='results_table' class="table table-striped display" cellpadding="2">
+                     <thead id="thead">
+                       <tr class='field_names'>
+                         <th>DB</th>`
+                         
+                       for (let column of columns) {
+                           html += `<th>${column}</th>`
+                       }
+
+           html += `   </tr>
+                     </thead>`
+
+           html += `<tbody id="tbody">`
+           
+           for (let database in results) {
+               const rows = results[database]
+               for (let row of rows) {
+                   html += `<tr><td>${database}</td>`
+
+                   for (let column_name in row) {
+                       html += `<td class='table_data'>${row[column_name]}</td>`
+                       // console.log(column_name, row[column_name])
+                   }
+
+                   html += `</tr>`
+               }
+          }
+
+           html += `</tbody> </table>`
+            
+          let table = document.createElement('table')
+          table.innerHTML = html
+          results_hook.appendChild(table)
+          child = $('table')
+          apply_data_tables(child)
+          document.getElementById('loading_div').innerHTML = ''
+        }        
+      }       
+      })
+    }
+
+  // event listener for testing checkbox
+  $('#test_check_box').click(function () { 
+    const parent = $('#SandboxMaster')
+    const slave1 = $('#SandboxSlave1')
+    const slave2 = $('#SandboxSlave2')
+
+    const all_test_check_boxes = [parent, slave1, slave2]
+    const remaining_check_boxes = $(':checkbox:not("#SandboxMaster"):not("#SandboxSlave1"):not("#SandboxSlave2")')
+
+    if (this.checked) {
+      $(all_test_check_boxes).each(function () { 
+      // .change() simulates user-interaction
+        $(this).prop('checked', true).change()
+    })}
+    
+    else {
+      $(all_test_check_boxes).each(function () {
+      // .change() simulates user-interaction 
+      $(this).prop('checked', false).change()
+    })}
+  })
+
+  // event listener for global checkbox
+  $('#master_check_box').click(function () { 
+    const all_check_boxes = $(':checkbox:not("#master_check_box")')
+
+    if (this.checked) {
+      all_check_boxes.each(function () { 
+      // need .change() to simulate user-interaction and trigger .change() event
+        $(this).prop('checked', true).change()
+    })}
+    
+    else {
+      all_check_boxes.each(function () {
+      // need .change() to simulate user-interaction and trigger .change() event
+      $(this).prop('checked', false).change()
+    })}
+  })
+
+  // event listener for individual checkboxes
+  $(':checkbox:not("#master_check_box")').on('change', function() { 
+    if (!this.checked) {
+      this.classList.remove('checked')
+      this.classList.add('unchecked')
+      console.log('not checked!')
+
+
+      // uncheck the global checkbox if any individual box becomes unchecked
+      $('#master_check_box').prop('checked', false).change()
+    }
+
+    else {
+      console.log('checked!')
+      this.classList.remove('unchecked')
+      this.classList.add('checked')
+    }
+
+    // if number of checked boxes equals total number of boxes, then check the global box
+    let checked_check_boxes = $(':checkbox:not("#master_check_box"):checked').length
+    let total_boxes = $(':checkbox:not("#master_check_box")').length
+    
+    if (checked_check_boxes == total_boxes) {
+      $('#master_check_box').prop('checked', true).change()
+    }
+  });
+</script>
+
+
+
+</body>
+</html>

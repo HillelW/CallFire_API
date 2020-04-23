@@ -1,0 +1,6 @@
+Django
+ipython
+pyodbc
+django-admin-tools
+callfire-api-client-python
+python-dotenv
