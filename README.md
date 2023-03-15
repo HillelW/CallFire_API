@@ -1,2 +1,2 @@
-# CallFire_API
-Update Contact Lists via CallFire API
+# CallFire API
+A Django application that uses the CallFire API
